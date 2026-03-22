@@ -1,4 +1,5 @@
 import { Pool } from "pg";
+import crypto from "node:crypto";
 
 function mapRow(row) {
   return {
@@ -39,7 +40,22 @@ export function createPostgresGameStore(databaseUrl) {
     await pool.query("create index if not exists idx_games_updated_at on games(updated_at desc);");
   }
 
-  async function createGame(game) {
+  async function createGame(payload) {
+    const now = new Date().toISOString();
+    const game = {
+      id: crypto.randomUUID(),
+      createdAt: now,
+      updatedAt: now,
+      whitePlayer: payload.whitePlayer,
+      blackPlayer: payload.blackPlayer,
+      difficulty: payload.difficulty,
+      result: payload.result,
+      pgn: payload.pgn,
+      fen: payload.fen,
+      moves: payload.moves ?? [],
+      analysis: payload.analysis ?? null
+    };
+
     const row = await pool.query(
       `
         insert into games (
