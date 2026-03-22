@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -12,6 +13,7 @@ namespace Xadrez3D.Gameplay
         [SerializeField] private string backendApiBaseUrl = "https://xadrez3d-mobile-api.onrender.com";
 
         private readonly BoardState _board = new BoardState();
+        private readonly List<string> _uciMoveHistory = new List<string>();
         private IChessEngine _engine;
         private CancellationTokenSource _turnToken;
 
@@ -24,8 +26,10 @@ namespace Xadrez3D.Gameplay
 
         public void NewGame(int newDifficultyIndex)
         {
+            _turnToken?.Cancel();
             difficultyIndex = Mathf.Clamp(newDifficultyIndex, 0, DifficultyCatalog.Levels.Length - 1);
             _board.ResetToInitialPosition();
+            _uciMoveHistory.Clear();
         }
 
         public async Task<bool> PlayHumanMoveAsync(ChessMove move)
@@ -35,6 +39,7 @@ namespace Xadrez3D.Gameplay
                 return false;
             }
 
+            _uciMoveHistory.Add(MoveNotation.ToUci(move));
             await PlayEngineTurnAsync();
             return true;
         }
@@ -46,14 +51,16 @@ namespace Xadrez3D.Gameplay
 
             var profile = DifficultyCatalog.Levels[difficultyIndex];
             var fen = ToFen();
-            var bestMove = await _engine.GetBestMoveAsync(fen, profile, _turnToken.Token);
-            _board.TryApplyMove(bestMove);
+            var bestMove = await _engine.GetBestMoveAsync(fen, profile, _turnToken.Token, _uciMoveHistory);
+            if (_board.TryApplyMove(bestMove))
+            {
+                _uciMoveHistory.Add(MoveNotation.ToUci(bestMove));
+            }
         }
 
         private string ToFen()
         {
-            // TODO: gerar FEN real a partir de BoardState para analise precisa.
-            return "startpos";
+            return _board.ToFen();
         }
     }
 }

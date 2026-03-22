@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -33,32 +34,32 @@ namespace Xadrez3D.AI
             _fallbackEngine = fallbackEngine;
         }
 
-        public async Task<ChessMove> GetBestMoveAsync(string fen, DifficultyProfile profile, CancellationToken ct)
+        public async Task<ChessMove> GetBestMoveAsync(string fen, DifficultyProfile profile, CancellationToken ct, IReadOnlyList<string> moveHistoryUci = null)
         {
             try
             {
-                var bestMove = await GetBestMoveUciAsync(fen, profile.MoveTimeMs, ct);
+                var bestMove = await GetBestMoveUciAsync(fen, profile.MoveTimeMs, moveHistoryUci, ct);
                 return ParseUciMove(bestMove);
             }
             catch
             {
                 if (_fallbackEngine != null)
                 {
-                    return await _fallbackEngine.GetBestMoveAsync(fen, profile, ct);
+                    return await _fallbackEngine.GetBestMoveAsync(fen, profile, ct, moveHistoryUci);
                 }
 
                 throw;
             }
         }
 
-        private async Task<string> GetBestMoveUciAsync(string fen, int moveTimeMs, CancellationToken ct)
+        private async Task<string> GetBestMoveUciAsync(string fen, int moveTimeMs, IReadOnlyList<string> moveHistoryUci, CancellationToken ct)
         {
             var depth = MoveTimeMsToDepth(moveTimeMs);
             var payload = new AnalysisRequest
             {
                 fen = string.IsNullOrWhiteSpace(fen) ? "startpos" : fen,
                 depth = depth,
-                moves = Array.Empty<string>()
+                moves = ToArray(moveHistoryUci)
             };
 
             var json = JsonUtility.ToJson(payload);
@@ -103,6 +104,22 @@ namespace Xadrez3D.AI
             if (moveTimeMs <= 450) return 12;
             if (moveTimeMs <= 800) return 14;
             return 16;
+        }
+
+        private static string[] ToArray(IReadOnlyList<string> values)
+        {
+            if (values == null || values.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            var result = new string[values.Count];
+            for (int i = 0; i < values.Count; i++)
+            {
+                result[i] = values[i];
+            }
+
+            return result;
         }
 
         private static ChessMove ParseUciMove(string uci)
