@@ -9,6 +9,7 @@ namespace Xadrez3D.Gameplay
     public class GameController : MonoBehaviour
     {
         [SerializeField] private int difficultyIndex = 1;
+        [SerializeField] private string backendApiBaseUrl = "https://xadrez3d-mobile-api.onrender.com";
 
         private readonly BoardState _board = new BoardState();
         private IChessEngine _engine;
@@ -16,7 +17,8 @@ namespace Xadrez3D.Gameplay
 
         private void Awake()
         {
-            _engine = new StockfishClient();
+            var localFallback = new StockfishClient();
+            _engine = new BackendChessEngine(backendApiBaseUrl, localFallback);
             _board.ResetToInitialPosition();
         }
 
@@ -50,7 +52,7 @@ namespace Xadrez3D.Gameplay
 
         private string ToFen()
         {
-            // TODO: gerar FEN real a partir de BoardState.
+            // TODO: gerar FEN real a partir de BoardState para analise precisa.
             return "startpos";
         }
     }

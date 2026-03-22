@@ -7,7 +7,6 @@ function parseCpFromInfoLine(line) {
   const mateMatch = line.match(/score mate (-?\d+)/);
   if (mateMatch) {
     const mateIn = Number(mateMatch[1]);
-    // Converte mate para uma escala aproximada em centipawns.
     return mateIn > 0 ? 10000 - mateIn * 100 : -10000 - mateIn * 100;
   }
 
@@ -21,6 +20,15 @@ function classifyDelta(deltaCp) {
   if (abs <= 150) return "inaccuracy";
   if (abs <= 300) return "mistake";
   return "blunder";
+}
+
+function writePosition(sf, fen) {
+  if (!fen || fen === "startpos") {
+    sf.stdin.write("position startpos\n");
+    return;
+  }
+
+  sf.stdin.write(`position fen ${fen}\n`);
 }
 
 export async function analyzeWithStockfish({ stockfishPath, fen, depth }) {
@@ -90,7 +98,7 @@ export async function analyzeWithStockfish({ stockfishPath, fen, depth }) {
 
     sf.stdin.write("uci\n");
     sf.stdin.write("isready\n");
-    sf.stdin.write(`position fen ${fen}\n`);
+    writePosition(sf, fen);
     sf.stdin.write(`go depth ${depth}\n`);
   });
 }

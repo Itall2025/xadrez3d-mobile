@@ -13,6 +13,7 @@ export const config = {
   port: Number(process.env.PORT ?? 3001),
   apiBaseUrl: process.env.API_BASE_URL ?? "http://localhost:3001",
   allowedOrigins: parseAllowedOrigins(process.env.ALLOWED_ORIGINS),
+  databaseUrl: process.env.DATABASE_URL ?? "",
   stockfishPath: process.env.STOCKFISH_PATH ?? "",
   defaultAnalysisDepth: Number(process.env.DEFAULT_ANALYSIS_DEPTH ?? 12)
 };

@@ -11,6 +11,7 @@ Projeto de xadrez 3D mobile (Android/iOS), com foco em visual premium, IA com va
 - Runtime Node.js
 - Endpoints REST para partida e analise
 - Integracao com Stockfish via UCI (com fallback seguro)
+- Persistencia em PostgreSQL por `DATABASE_URL`
 
 ## Setup rapido do backend
 ```bash
@@ -23,8 +24,10 @@ npm run dev
 API local: `http://localhost:3001`
 Saude: `http://localhost:3001/api/health`
 
+## Integracao Unity
+`GameController` usa `BackendChessEngine` para buscar melhor lance em `/api/analysis`.
+
 ## Proximos passos imediatos
-1. Conectar Unity ao endpoint `/api/analysis`
-2. Persistencia em banco (PostgreSQL no Render)
-3. Integrar Stockfish no servidor com binario dedicado
-4. Dashboard de analise por partida (acuracia, blunders, melhores lances)
+1. Gerar FEN real no cliente Unity
+2. Enviar historico de lances UCI no payload de analise
+3. Integrar dashboard de analise por partida (acuracia, blunders, melhores lances)
