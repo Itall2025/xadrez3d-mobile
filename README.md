@@ -26,6 +26,7 @@ Saude: `http://localhost:3001/api/health`
 
 ## Integracao Unity
 `GameController` usa `BackendChessEngine` para buscar melhor lance em `/api/analysis`.
+Cena jogavel inicial: `docs/UNITY_PLAYABLE_SCENE.md`.
 
 ## Proximos passos imediatos
 1. Gerar FEN real no cliente Unity
