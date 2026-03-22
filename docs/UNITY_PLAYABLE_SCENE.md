@@ -30,5 +30,8 @@ O bootstrap cria automaticamente:
 - Scroll: zoom.
 
 ## Estado atual
-- Visual 3D e fluxo de jogadas ja funcionam.
+- Visual 3D premium com atmosfera, board frame e HUD estilizada.
+- Animacao de spawn e movimento das pecas.
+- Destaque de selecao com pulso visual.
+- Fluxo de jogadas usuario x maquina funcional.
 - Regras ainda estao simplificadas no `BoardState` (sem validacao completa de legalidade).

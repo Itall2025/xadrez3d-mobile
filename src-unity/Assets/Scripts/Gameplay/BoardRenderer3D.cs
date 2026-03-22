@@ -9,15 +9,18 @@ namespace Xadrez3D.Gameplay
         [SerializeField] private GameController gameController;
         [SerializeField] private float squareSize = 1.1f;
         [SerializeField] private float boardY = 0f;
-        [SerializeField] private Color darkSquareColor = new Color(0.2f, 0.25f, 0.3f);
-        [SerializeField] private Color lightSquareColor = new Color(0.88f, 0.89f, 0.84f);
-        [SerializeField] private Color selectedSquareColor = new Color(0.96f, 0.8f, 0.25f);
-        [SerializeField] private Color whitePieceColor = new Color(0.95f, 0.95f, 0.95f);
-        [SerializeField] private Color blackPieceColor = new Color(0.16f, 0.16f, 0.18f);
+        [SerializeField] private float moveAnimationTime = 0.24f;
+        [SerializeField] private float spawnAnimationTime = 0.2f;
+        [SerializeField] private Color darkSquareColor = new Color(0.13f, 0.18f, 0.24f);
+        [SerializeField] private Color lightSquareColor = new Color(0.82f, 0.84f, 0.78f);
+        [SerializeField] private Color selectedSquareColor = new Color(0.95f, 0.68f, 0.18f);
+        [SerializeField] private Color whitePieceColor = new Color(0.96f, 0.95f, 0.9f);
+        [SerializeField] private Color blackPieceColor = new Color(0.12f, 0.12f, 0.14f);
 
         private readonly Dictionary<int, Renderer> _squareRenderers = new Dictionary<int, Renderer>();
         private readonly Dictionary<int, Color> _baseSquareColors = new Dictionary<int, Color>();
-        private readonly List<GameObject> _pieceObjects = new List<GameObject>();
+        private readonly Dictionary<int, PieceView> _pieceViews = new Dictionary<int, PieceView>();
+        private readonly List<PieceView> _tempRemoved = new List<PieceView>();
 
         private Transform _boardRoot;
         private Transform _pieceRoot;
@@ -26,6 +29,14 @@ namespace Xadrez3D.Gameplay
         private Material _whitePieceMaterial;
         private Material _blackPieceMaterial;
         private int _selectedKey = -1;
+        private float _selectionPulseTime;
+
+        private sealed class PieceView
+        {
+            public GameObject GameObject;
+            public Piece Piece;
+            public Square Square;
+        }
 
         public float SquareSize => squareSize;
         public Vector3 BoardCenter => transform.position + new Vector3(squareSize * 3.5f, boardY, squareSize * 3.5f);
@@ -54,6 +65,19 @@ namespace Xadrez3D.Gameplay
             {
                 gameController.BoardChanged -= RenderPosition;
             }
+        }
+
+        private void Update()
+        {
+            if (_selectedKey < 0 || !_squareRenderers.TryGetValue(_selectedKey, out var renderer))
+            {
+                return;
+            }
+
+            _selectionPulseTime += Time.deltaTime * 4f;
+            var baseColor = _baseSquareColors[_selectedKey];
+            var pulse = (Mathf.Sin(_selectionPulseTime) + 1f) * 0.5f;
+            renderer.material.color = Color.Lerp(baseColor, selectedSquareColor, 0.55f + 0.35f * pulse);
         }
 
         public bool TryGetSquareFromHit(RaycastHit hit, out Square square)
@@ -86,6 +110,7 @@ namespace Xadrez3D.Gameplay
             if (_squareRenderers.TryGetValue(_selectedKey, out var renderer))
             {
                 renderer.material.color = selectedSquareColor;
+                _selectionPulseTime = 0f;
             }
         }
 
@@ -106,10 +131,17 @@ namespace Xadrez3D.Gameplay
             _pieceRoot = new GameObject("PiecesRoot").transform;
             _pieceRoot.SetParent(transform, false);
 
+            var frame = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            frame.name = "BoardFrame";
+            frame.transform.SetParent(_boardRoot, false);
+            frame.transform.localScale = new Vector3(squareSize * 8.55f, 0.28f, squareSize * 8.55f);
+            frame.transform.localPosition = new Vector3(squareSize * 3.5f, boardY - 0.17f, squareSize * 3.5f);
+
             _lightSquareMaterial = CreateMaterial(lightSquareColor);
             _darkSquareMaterial = CreateMaterial(darkSquareColor);
             _whitePieceMaterial = CreateMaterial(whitePieceColor);
             _blackPieceMaterial = CreateMaterial(blackPieceColor);
+            frame.GetComponent<Renderer>().material = CreateMaterial(new Color(0.08f, 0.11f, 0.15f), 0.22f, 0.84f);
 
             for (int rank = 0; rank < 8; rank++)
             {
@@ -117,7 +149,7 @@ namespace Xadrez3D.Gameplay
                 {
                     var square = GameObject.CreatePrimitive(PrimitiveType.Cube);
                     square.transform.SetParent(_boardRoot, false);
-                    square.transform.localScale = new Vector3(squareSize, 0.12f, squareSize);
+                    square.transform.localScale = new Vector3(squareSize, 0.1f, squareSize);
                     square.transform.localPosition = new Vector3(file * squareSize, boardY - 0.06f, rank * squareSize);
 
                     var squareView = square.AddComponent<BoardSquareView>();
@@ -141,9 +173,26 @@ namespace Xadrez3D.Gameplay
                 return;
             }
 
-            ClearPieces();
-
             var board = gameController.Board;
+            _tempRemoved.Clear();
+
+            foreach (var pair in _pieceViews)
+            {
+                var file = pair.Key & 7;
+                var rank = (pair.Key >> 3) & 7;
+                var expected = board.Get(file, rank);
+                if (expected.IsEmpty || !SamePiece(expected, pair.Value.Piece))
+                {
+                    _tempRemoved.Add(pair.Value);
+                }
+            }
+
+            for (int i = 0; i < _tempRemoved.Count; i++)
+            {
+                var removeKey = Key(_tempRemoved[i].Square.File, _tempRemoved[i].Square.Rank);
+                _pieceViews.Remove(removeKey);
+            }
+
             for (int rank = 0; rank < 8; rank++)
             {
                 for (int file = 0; file < 8; file++)
@@ -154,13 +203,39 @@ namespace Xadrez3D.Gameplay
                         continue;
                     }
 
-                    var pieceObj = CreatePieceObject(piece.Type);
-                    pieceObj.transform.SetParent(_pieceRoot, false);
-                    pieceObj.transform.localPosition = new Vector3(file * squareSize, boardY + PieceHeight(piece.Type), rank * squareSize);
-                    pieceObj.GetComponent<Renderer>().material = piece.Color == PieceColor.White ? _whitePieceMaterial : _blackPieceMaterial;
-                    _pieceObjects.Add(pieceObj);
+                    var targetSquare = new Square(file, rank);
+                    var targetKey = Key(file, rank);
+                    if (_pieceViews.ContainsKey(targetKey))
+                    {
+                        continue;
+                    }
+
+                    var reuseIndex = FindClosestReusable(piece, targetSquare);
+                    if (reuseIndex >= 0)
+                    {
+                        var view = _tempRemoved[reuseIndex];
+                        _tempRemoved.RemoveAt(reuseIndex);
+                        AssignPieceToSquare(view, piece, targetSquare);
+                        _pieceViews[targetKey] = view;
+                        AnimateMove(view.GameObject.transform, GetLocalPosition(targetSquare, piece.Type), moveAnimationTime);
+                        continue;
+                    }
+
+                    var created = CreatePieceView(piece, targetSquare);
+                    _pieceViews[targetKey] = created;
+                    AnimateSpawn(created.GameObject.transform);
                 }
             }
+
+            for (int i = 0; i < _tempRemoved.Count; i++)
+            {
+                var leftover = _tempRemoved[i];
+                if (leftover.GameObject != null)
+                {
+                    Destroy(leftover.GameObject);
+                }
+            }
+            _tempRemoved.Clear();
 
             if (_selectedKey >= 0)
             {
@@ -170,17 +245,29 @@ namespace Xadrez3D.Gameplay
             }
         }
 
-        private void ClearPieces()
+        private int FindClosestReusable(Piece piece, Square targetSquare)
         {
-            for (int i = 0; i < _pieceObjects.Count; i++)
+            var bestIndex = -1;
+            var bestDistance = float.MaxValue;
+            for (int i = 0; i < _tempRemoved.Count; i++)
             {
-                if (_pieceObjects[i] != null)
+                var candidate = _tempRemoved[i];
+                if (!SamePiece(piece, candidate.Piece))
                 {
-                    Destroy(_pieceObjects[i]);
+                    continue;
+                }
+
+                var dx = candidate.Square.File - targetSquare.File;
+                var dy = candidate.Square.Rank - targetSquare.Rank;
+                var dist = dx * dx + dy * dy;
+                if (dist < bestDistance)
+                {
+                    bestDistance = dist;
+                    bestIndex = i;
                 }
             }
 
-            _pieceObjects.Clear();
+            return bestIndex;
         }
 
         private static float PieceHeight(PieceType type)
@@ -195,6 +282,27 @@ namespace Xadrez3D.Gameplay
                 PieceType.King => 0.55f,
                 _ => 0.3f
             };
+        }
+
+        private PieceView CreatePieceView(Piece piece, Square square)
+        {
+            var go = CreatePieceObject(piece.Type);
+            go.transform.SetParent(_pieceRoot, false);
+            go.transform.localPosition = GetLocalPosition(square, piece.Type);
+            go.GetComponent<Renderer>().material = piece.Color == PieceColor.White ? _whitePieceMaterial : _blackPieceMaterial;
+            return new PieceView
+            {
+                GameObject = go,
+                Piece = piece,
+                Square = square
+            };
+        }
+
+        private void AssignPieceToSquare(PieceView view, Piece piece, Square square)
+        {
+            view.Piece = piece;
+            view.Square = square;
+            view.GameObject.GetComponent<Renderer>().material = piece.Color == PieceColor.White ? _whitePieceMaterial : _blackPieceMaterial;
         }
 
         private GameObject CreatePieceObject(PieceType type)
@@ -222,13 +330,67 @@ namespace Xadrez3D.Gameplay
                 PieceType.King => new Vector3(squareSize * 0.48f, 1.1f, squareSize * 0.48f),
                 _ => new Vector3(squareSize * 0.4f, 0.7f, squareSize * 0.4f)
             };
+            go.GetComponent<Collider>().enabled = false;
             return go;
         }
 
-        private static Material CreateMaterial(Color color)
+        private Vector3 GetLocalPosition(Square square, PieceType type)
+        {
+            return new Vector3(square.File * squareSize, boardY + PieceHeight(type), square.Rank * squareSize);
+        }
+
+        private void AnimateSpawn(Transform pieceTransform)
+        {
+            StartCoroutine(SpawnRoutine(pieceTransform));
+        }
+
+        private System.Collections.IEnumerator SpawnRoutine(Transform pieceTransform)
+        {
+            var targetScale = pieceTransform.localScale;
+            pieceTransform.localScale = Vector3.zero;
+            var t = 0f;
+            while (t < spawnAnimationTime)
+            {
+                t += Time.deltaTime;
+                var blend = Mathf.SmoothStep(0f, 1f, t / spawnAnimationTime);
+                pieceTransform.localScale = Vector3.LerpUnclamped(Vector3.zero, targetScale, blend);
+                yield return null;
+            }
+            pieceTransform.localScale = targetScale;
+        }
+
+        private void AnimateMove(Transform pieceTransform, Vector3 destination, float duration)
+        {
+            StartCoroutine(MoveRoutine(pieceTransform, destination, duration));
+        }
+
+        private System.Collections.IEnumerator MoveRoutine(Transform pieceTransform, Vector3 destination, float duration)
+        {
+            var origin = pieceTransform.localPosition;
+            var t = 0f;
+            while (t < duration)
+            {
+                t += Time.deltaTime;
+                var blend = Mathf.SmoothStep(0f, 1f, t / duration);
+                var pos = Vector3.LerpUnclamped(origin, destination, blend);
+                pos.y += Mathf.Sin(blend * Mathf.PI) * 0.22f;
+                pieceTransform.localPosition = pos;
+                yield return null;
+            }
+            pieceTransform.localPosition = destination;
+        }
+
+        private static bool SamePiece(Piece a, Piece b)
+        {
+            return a.Type == b.Type && a.Color == b.Color;
+        }
+
+        private static Material CreateMaterial(Color color, float metallic = 0.07f, float smoothness = 0.65f)
         {
             var material = new Material(Shader.Find("Standard"));
             material.color = color;
+            material.SetFloat("_Metallic", metallic);
+            material.SetFloat("_Glossiness", smoothness);
             return material;
         }
 

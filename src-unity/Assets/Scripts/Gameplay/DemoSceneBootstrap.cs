@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Xadrez3D.Gameplay
 {
@@ -35,6 +36,11 @@ namespace Xadrez3D.Gameplay
                 camera = cameraGo.AddComponent<Camera>();
                 cameraGo.tag = "MainCamera";
             }
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.04f, 0.06f, 0.09f);
+            camera.fieldOfView = 52f;
+            camera.nearClipPlane = 0.02f;
+            camera.farClipPlane = 120f;
 
             var orbit = camera.GetComponent<OrbitCameraController>();
             if (orbit == null)
@@ -57,6 +63,7 @@ namespace Xadrez3D.Gameplay
 
             EnsureLighting(board.transform.position + new Vector3(3.5f, 0f, 3.5f));
             EnsureGround(board.transform.position + new Vector3(3.5f, -0.13f, 3.5f));
+            EnsureAtmosphere();
         }
 
         private static void EnsureLighting(Vector3 center)
@@ -76,10 +83,18 @@ namespace Xadrez3D.Gameplay
             var fillLightObj = new GameObject("Fill Light");
             var fillLight = fillLightObj.AddComponent<Light>();
             fillLight.type = LightType.Point;
-            fillLight.intensity = 2f;
+            fillLight.intensity = 1.6f;
             fillLight.range = 40f;
-            fillLight.color = new Color(0.6f, 0.72f, 1f);
+            fillLight.color = new Color(0.5f, 0.67f, 1f);
             fillLightObj.transform.position = center + new Vector3(-2f, 8f, 8f);
+
+            var rimLightObj = new GameObject("Rim Light");
+            var rimLight = rimLightObj.AddComponent<Light>();
+            rimLight.type = LightType.Point;
+            rimLight.intensity = 1.3f;
+            rimLight.range = 28f;
+            rimLight.color = new Color(1f, 0.5f, 0.2f);
+            rimLightObj.transform.position = center + new Vector3(8f, 3.5f, -5f);
         }
 
         private static void EnsureGround(Vector3 center)
@@ -99,7 +114,19 @@ namespace Xadrez3D.Gameplay
             {
                 color = new Color(0.11f, 0.13f, 0.16f)
             };
+            mat.SetFloat("_Glossiness", 0.35f);
+            mat.SetFloat("_Metallic", 0.2f);
             renderer.material = mat;
+        }
+
+        private static void EnsureAtmosphere()
+        {
+            RenderSettings.ambientMode = AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(0.16f, 0.18f, 0.22f);
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogDensity = 0.018f;
+            RenderSettings.fogColor = new Color(0.04f, 0.06f, 0.09f);
         }
     }
 }
