@@ -11,8 +11,11 @@ namespace Xadrez3D.Gameplay
         {
             if (!autoCreateIfMissing)
             {
+                Debug.Log("DemoSceneBootstrap skipped (autoCreateIfMissing = false).");
                 return;
             }
+
+            Debug.Log("DemoSceneBootstrap running.");
 
             var controller = FindObjectOfType<GameController>();
             if (controller == null)
