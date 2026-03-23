@@ -66,6 +66,16 @@ namespace Xadrez3D.Core
             }
 
             var target = Get(move.To.File, move.To.Rank);
+            if (!target.IsEmpty && target.Color == piece.Color)
+            {
+                return false;
+            }
+
+            if (!IsPseudoLegalMove(piece, move, target))
+            {
+                return false;
+            }
+
             var isCapture = !target.IsEmpty;
             var isPawnMove = piece.Type == PieceType.Pawn;
             var isEnPassantCapture = isPawnMove && target.IsEmpty && move.From.File != move.To.File;
@@ -197,6 +207,173 @@ namespace Xadrez3D.Core
         private static bool IsInside(Square square)
         {
             return square.File >= 0 && square.File < 8 && square.Rank >= 0 && square.Rank < 8;
+        }
+
+        private bool IsPseudoLegalMove(Piece piece, ChessMove move, Piece target)
+        {
+            return piece.Type switch
+            {
+                PieceType.Pawn => IsPseudoLegalPawnMove(piece, move, target),
+                PieceType.Knight => IsPseudoLegalKnightMove(move),
+                PieceType.Bishop => IsPseudoLegalBishopMove(move),
+                PieceType.Rook => IsPseudoLegalRookMove(move),
+                PieceType.Queen => IsPseudoLegalQueenMove(move),
+                PieceType.King => IsPseudoLegalKingMove(piece, move),
+                _ => false
+            };
+        }
+
+        private bool IsPseudoLegalPawnMove(Piece piece, ChessMove move, Piece target)
+        {
+            var direction = piece.Color == PieceColor.White ? 1 : -1;
+            var startRank = piece.Color == PieceColor.White ? 1 : 6;
+            var fileDelta = move.To.File - move.From.File;
+            var rankDelta = move.To.Rank - move.From.Rank;
+
+            if (fileDelta == 0)
+            {
+                if (!target.IsEmpty)
+                {
+                    return false;
+                }
+
+                if (rankDelta == direction)
+                {
+                    return true;
+                }
+
+                if (move.From.Rank == startRank && rankDelta == 2 * direction)
+                {
+                    var middleRank = move.From.Rank + direction;
+                    return Get(move.From.File, middleRank).IsEmpty;
+                }
+
+                return false;
+            }
+
+            if (Math.Abs(fileDelta) == 1 && rankDelta == direction)
+            {
+                if (!target.IsEmpty)
+                {
+                    return true;
+                }
+
+                return _enPassantTarget.HasValue &&
+                       _enPassantTarget.Value.File == move.To.File &&
+                       _enPassantTarget.Value.Rank == move.To.Rank;
+            }
+
+            return false;
+        }
+
+        private static bool IsPseudoLegalKnightMove(ChessMove move)
+        {
+            var fileDelta = Math.Abs(move.To.File - move.From.File);
+            var rankDelta = Math.Abs(move.To.Rank - move.From.Rank);
+            return (fileDelta == 1 && rankDelta == 2) || (fileDelta == 2 && rankDelta == 1);
+        }
+
+        private bool IsPseudoLegalBishopMove(ChessMove move)
+        {
+            var fileDelta = Math.Abs(move.To.File - move.From.File);
+            var rankDelta = Math.Abs(move.To.Rank - move.From.Rank);
+            if (fileDelta != rankDelta || fileDelta == 0)
+            {
+                return false;
+            }
+
+            return IsPathClear(move.From, move.To);
+        }
+
+        private bool IsPseudoLegalRookMove(ChessMove move)
+        {
+            var sameFile = move.To.File == move.From.File;
+            var sameRank = move.To.Rank == move.From.Rank;
+            if (sameFile == sameRank)
+            {
+                return false;
+            }
+
+            return IsPathClear(move.From, move.To);
+        }
+
+        private bool IsPseudoLegalQueenMove(ChessMove move)
+        {
+            return IsPseudoLegalBishopMove(move) || IsPseudoLegalRookMove(move);
+        }
+
+        private bool IsPseudoLegalKingMove(Piece piece, ChessMove move)
+        {
+            var fileDelta = Math.Abs(move.To.File - move.From.File);
+            var rankDelta = Math.Abs(move.To.Rank - move.From.Rank);
+
+            if (fileDelta <= 1 && rankDelta <= 1 && (fileDelta + rankDelta) > 0)
+            {
+                return true;
+            }
+
+            if (rankDelta != 0 || fileDelta != 2)
+            {
+                return false;
+            }
+
+            if (piece.Color == PieceColor.White)
+            {
+                if (_whiteKingMoved || move.From.Rank != 0 || move.From.File != 4)
+                {
+                    return false;
+                }
+
+                if (move.To.File == 6)
+                {
+                    return !_whiteKingRookMoved && Get(7, 0).Type == PieceType.Rook && IsPathClear(new Square(4, 0), new Square(7, 0));
+                }
+
+                if (move.To.File == 2)
+                {
+                    return !_whiteQueenRookMoved && Get(0, 0).Type == PieceType.Rook && IsPathClear(new Square(0, 0), new Square(4, 0));
+                }
+
+                return false;
+            }
+
+            if (_blackKingMoved || move.From.Rank != 7 || move.From.File != 4)
+            {
+                return false;
+            }
+
+            if (move.To.File == 6)
+            {
+                return !_blackKingRookMoved && Get(7, 7).Type == PieceType.Rook && IsPathClear(new Square(4, 7), new Square(7, 7));
+            }
+
+            if (move.To.File == 2)
+            {
+                return !_blackQueenRookMoved && Get(0, 7).Type == PieceType.Rook && IsPathClear(new Square(0, 7), new Square(4, 7));
+            }
+
+            return false;
+        }
+
+        private bool IsPathClear(Square from, Square to)
+        {
+            var fileStep = Math.Sign(to.File - from.File);
+            var rankStep = Math.Sign(to.Rank - from.Rank);
+
+            var file = from.File + fileStep;
+            var rank = from.Rank + rankStep;
+            while (file != to.File || rank != to.Rank)
+            {
+                if (!Get(file, rank).IsEmpty)
+                {
+                    return false;
+                }
+
+                file += fileStep;
+                rank += rankStep;
+            }
+
+            return true;
         }
 
         private void UpdateCastlingStateForMove(Piece piece, ChessMove move)
